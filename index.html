@@ -79,7 +79,7 @@ h2{font:600 16px Sora,sans-serif;margin:0}.mu{color:var(--mu);font-size:13px;mar
   </div>
   <div class="note" id="aviso" hidden></div>
   <button class="pri" id="go">Abrir a câmera</button>
-  <p class="mu">Durante a gravação: toque no texto para pausar ou continuar. Arraste a janela pela alça de cima e mude o tamanho pelo canto de baixo.</p>
+  <p class="mu">Durante a gravação: arraste o texto com o dedo para voltar ou avançar, e toque nele para pausar ou continuar. Arraste a janela pela alça de cima e mude o tamanho pelo canto de baixo.</p>
 </div>
 
 <div id="rec" hidden>
@@ -107,7 +107,10 @@ try{const h=location.hash.slice(1);if(h.startsWith('t=')){const t=decodeURICompo
 const toast=(m,ms=3500)=>{const t=$('#toast');t.textContent=m;t.hidden=false;clearTimeout(t._t);t._t=setTimeout(()=>t.hidden=true,ms)};
 const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const norm=w=>w.toLowerCase().normalize('NFD').replace(/\p{M}/gu,'').replace(/[^\p{L}\p{N}]/gu,'');
-const SR=window.SpeechRecognition||window.webkitSpeechRecognition||null;
+const ANDROID=/Android/i.test(navigator.userAgent);
+/* No Android o reconhecimento de fala do sistema apita a cada reinício e o apito entra na gravação. Lá o texto segue a voz pelo som das sílabas. */
+const SR=ANDROID?null:(window.SpeechRecognition||window.webkitSpeechRecognition||null);
+const TOQUE=matchMedia('(pointer:coarse)').matches;
 
 /* ===== Preparação ===== */
 const pills=(id,k,fn)=>{const r=()=>$$('#'+id+' button').forEach(b=>b.classList.toggle('on',b.dataset.v===String(C[k])));$$('#'+id+' button').forEach(b=>b.onclick=()=>{C[k]=b.dataset.v;salva();r();fn&&fn()});r()};
@@ -126,11 +129,11 @@ $('#busca').onclick=()=>listaMics(true);$('#mic').onchange=e=>{C.mic=e.target.va
 if(navigator.mediaDevices&&navigator.mediaDevices.addEventListener)navigator.mediaDevices.addEventListener('devicechange',()=>listaMics(false));
 
 /* ===== Gravação ===== */
-let stream=null,W=[],sp=[],pos=0,posF=0,cur=0,run=false,vivo=false,rf=0,last=0,espera=0,man=false,hist=[],rate=0,srI=null,ouvindo=false,ultMatch=0,lock=null;
+let cum=[0],silPos=0,envMax=0,ultSil=0,stream=null,W=[],sp=[],pos=0,posF=0,cur=0,run=false,vivo=false,rf=0,last=0,espera=0,man=false,hist=[],rate=0,srI=null,ouvindo=false,ultMatch=0,lock=null;
 let ac=null,an=null,buf=null,piso=.01,falando=false,ultVoz=0,rec=null,chunks=[],recT=0,blobFim=null,mimeFim='';
 const box=()=>C.lay==='janela'?$('#rolo'):$('#rolo');
-function montaTexto(){const pars=C.txt.replace(/\r/g,'').split(/\n\s*\n+/).map(p=>p.trim()).filter(Boolean);W=[];let h='';pars.forEach(p=>{h+='<p>';p.split(/\s+/).forEach(w=>{h+=`<span>${esc(w)}</span> `;W.push({n:norm(w),fim:/[.!?…]["”')]*$/.test(w),pausa:/[,;:]["”')]*$/.test(w)})});h+='</p>'});
-  const tx=$('#tx');tx.innerHTML=h+'<div style="height:60vh"></div>';tx.style.fontSize=C.fs+'px';tx.classList.toggle('esp',!!C.esp);sp=[...tx.querySelectorAll('span')];pos=posF=0;cur=0;marc=-1;marca(0)}
+function montaTexto(){const pars=C.txt.replace(/\r/g,'').split(/\n\s*\n+/).map(p=>p.trim()).filter(Boolean);W=[];let h='';pars.forEach(p=>{h+='<p>';p.split(/\s+/).forEach(w=>{h+=`<span>${esc(w)}</span> `;W.push({sil:Math.max(1,(norm(w).match(/[aeiouy]+/g)||[]).length),n:norm(w),fim:/[.!?…]["”')]*$/.test(w),pausa:/[,;:]["”')]*$/.test(w)})});h+='</p>'});
+  const tx=$('#tx');tx.innerHTML=h+'<div style="height:60vh"></div>';tx.style.fontSize=C.fs+'px';tx.classList.toggle('esp',!!C.esp);sp=[...tx.querySelectorAll('span')];cum=[0];W.forEach(w=>cum.push(cum[cum.length-1]+w.sil));silPos=0;pos=posF=0;cur=0;marc=-1;marca(0)}
 const linhaY=()=>$('#rolo').clientHeight*.3;
 function faixa(){const f=$('#faixa'),h=C.fs*1.4;f.style.top=($('#rolo').offsetTop+linhaY()-h/2)+'px';f.style.height=h+'px';$('#tx').style.paddingTop=linhaY()+'px'}
 let marc=-1;function marca(i){i=Math.min(Math.floor(i),sp.length-1);if(i===marc||i<0)return;if(Math.abs(i-marc)>4)sp.forEach((s,k)=>s.className=k<i?'lido':k===i?'agora':'');else for(let k=Math.max(0,Math.min(marc,i));k<=Math.max(marc,i);k++)sp[k].className=k<i?'lido':k===i?'agora':'';marc=i}
@@ -142,7 +145,7 @@ $('#go').onclick=async()=>{if(!C.txt.trim())return toast('Escreva o texto primei
   vivo=true;$('#prep').hidden=true;$('#rec').hidden=false;const cam=$('#cam');cam.srcObject=stream;cam.classList.toggle('esp',C.lado==='user');cam.play().catch(()=>{});
   montaTexto();layout();setTimeout(()=>{faixa();cur=0},50);rate=C.vel;
   try{lock=await navigator.wakeLock.request('screen')}catch(e){}
-  ligaAudio();if(C.modo==='voz')ligaVoz();$('#bVm').hidden=$('#bVp').hidden=C.modo!=='auto';
+  ligaAudio();if(C.modo==='voz')ligaVoz();$('#bVm').hidden=$('#bVp').hidden=C.modo!=='auto';$('#bBk').hidden=$('#bFw').hidden=TOQUE;$('#bar2').hidden=TOQUE&&C.modo!=='auto';
   status(C.modo==='voz'?'Toque em gravar ou comece a falar':'Toque em gravar');last=performance.now();rf=requestAnimationFrame(loop);
   if(C.modo==='voz')run=true;try{if(document.documentElement.requestFullscreen&&innerWidth<900)document.documentElement.requestFullscreen().catch(()=>{})}catch(e){}};
 const status=t=>$('#st').textContent=t;
@@ -157,25 +160,29 @@ function ligaVoz(){if(!SR)return;try{srI=new SR();srI.lang='pt-BR';srI.continuou
   srI.onresult=e=>{let s='';for(let i=Math.max(0,e.results.length-3);i<e.results.length;i++)s+=' '+e.results[i][0].transcript;if(run)acha(s.split(/\s+/).map(norm).filter(Boolean))};
   srI.onerror=e=>{if(e.error==='not-allowed'||e.error==='service-not-allowed'){ouvindo=false;toast('O reconhecimento de fala foi bloqueado. O texto vai seguir o volume da sua voz.')}};
   srI.onend=()=>{if(vivo&&ouvindo)setTimeout(()=>{try{srI.start()}catch(e){}},120)};srI.start();ouvindo=true}catch(e){ouvindo=false}}
+function silaba(nv,lim,t){if(nv>lim&&nv>envMax){envMax=nv;return false}if(envMax>lim&&nv<envMax*.68&&t-ultSil>110){envMax=0;ultSil=t;return true}if(nv<lim)envMax=0;return false}
 function ritmo(){const n=performance.now();hist=hist.filter(h=>n-h[0]<12000);if(hist.length<3)return;const a=hist[0],b=hist[hist.length-1],dt=(b[0]-a[0])/60000;if(dt>.1){const r=(b[1]-a[1])/dt;if(r>40&&r<320){rate=rate*.7+r*.3;const c=$('#rit');c.hidden=false;c.textContent='Seu ritmo: '+Math.round(rate)+' p/min'}}}
 function loop(t){if(!vivo)return;const dt=Math.min(.1,(t-last)/1000);last=t;
   const nv=nivel(),lim=Math.max(piso*2.6,.012);if(nv>lim){falando=true;ultVoz=t}else if(t-ultVoz>450)falando=false;$('#medidor i').style.width=Math.min(100,nv/(lim*2.5)*100)+'%';
   if(run&&!man){if(C.modo==='auto'){if(espera>0)espera-=dt;else{const a=Math.floor(posF);posF+=C.vel/60*dt;for(let k=a;k<Math.floor(posF)&&k<W.length;k++){if(W[k].fim)espera=.55;else if(W[k].pausa)espera=.2}pos=posF}}
     else if(C.modo==='voz'){const srOk=ouvindo&&t-ultMatch<2500;
-      if(!srOk&&falando){posF+=rate/60*dt;pos=posF}else posF=pos; /* sem palavras reconhecidas, anda pelo volume no seu ritmo */
+      if(srOk){silPos=cum[Math.min(Math.floor(pos),W.length)]}else if(silaba(nv,lim,t)){silPos+=1;let k=Math.floor(pos);while(k<W.length-1&&cum[k+1]<=silPos)k++;if(k!==Math.floor(pos))hist.push([t,k]);pos=k} /* sem palavras reconhecidas, anda sílaba por sílaba da sua fala */
+      posF=pos;
       status(falando?(srOk?'Acompanhando você':'Ouvindo você'):'Esperando você falar');ritmo()}
     if(pos>=W.length-1){pos=posF=W.length-1;if(C.modo==='auto'){run=false;status('Fim do texto')}}marca(pos)}
-  if(!man||C.modo!=='manual'){const s=sp[Math.max(0,Math.min(Math.floor(pos),sp.length-1))];if(s){const y=s.offsetTop-linhaY()+s.offsetHeight/2-parseFloat(getComputedStyle($('#tx')).paddingTop||0)+linhaY();cur+=(y-cur)*Math.min(1,dt*(C.modo==='voz'?5:8));$('#rolo').scrollTop=cur}}
+  if(!man){const s=sp[Math.max(0,Math.min(Math.floor(pos),sp.length-1))];if(s){const y=s.offsetTop-linhaY()+s.offsetHeight/2-parseFloat(getComputedStyle($('#tx')).paddingTop||0)+linhaY();cur+=(y-cur)*Math.min(1,dt*(C.modo==='voz'?5:8));$('#rolo').scrollTop=cur}}
   if(rec){const s=Math.floor((t-recT)/1000);$('#tempo').textContent='● '+Math.floor(s/60)+':'+String(s%60).padStart(2,'0')}
   rf=requestAnimationFrame(loop)}
 const pausaTx=()=>{run=!run;$('#bTx').textContent=run?'Pausar':'Continuar';if(!run)status('Texto pausado');else{posF=pos;man=false;if(C.modo==='auto')status('Lendo');if(C.modo==='manual')status('Passe o texto com o dedo')}};
-$('#tx').onclick=pausaTx;$('#bTx').onclick=pausaTx;
-const pula=d=>{let i=Math.floor(pos),y0=sp[i]?sp[i].offsetTop:0,j=i;if(d>0){while(j<sp.length-1&&sp[j].offsetTop<=y0)j++}else{let n=0,y=y0;while(j>0){j--;if(sp[j].offsetTop<y){n++;y=sp[j].offsetTop;if(n>1){j++;break}}}}pos=posF=j;espera=0;man=false;marca(pos)};
+$('#bTx').onclick=pausaTx;
+const pula=d=>{let i=Math.floor(pos),y0=sp[i]?sp[i].offsetTop:0,j=i;if(d>0){while(j<sp.length-1&&sp[j].offsetTop<=y0)j++}else{let n=0,y=y0;while(j>0){j--;if(sp[j].offsetTop<y){n++;y=sp[j].offsetTop;if(n>1){j++;break}}}}pos=posF=j;espera=0;man=false;silPos=cum[j]||0;marca(pos)};
 $('#bBk').onclick=()=>pula(-1);$('#bFw').onclick=()=>pula(1);
 const fonte=d=>{C.fs=Math.max(18,Math.min(72,C.fs+d));salva();$('#tx').style.fontSize=C.fs+'px';faixa()};$('#bMn').onclick=()=>fonte(-2);$('#bMs').onclick=()=>fonte(2);
 $('#bVm').onclick=()=>{C.vel=Math.max(60,C.vel-10);salva();toast(C.vel+' palavras por minuto',1200)};$('#bVp').onclick=()=>{C.vel=Math.min(220,C.vel+10);salva();toast(C.vel+' palavras por minuto',1200)};
 /* Manual: arrastar o texto com o dedo */
-(()=>{const r=$('#rolo');let y0=null,c0=0;r.addEventListener('pointerdown',e=>{if(C.modo!=='manual')return;y0=e.clientY;c0=cur;man=true});addEventListener('pointermove',e=>{if(y0==null)return;cur=Math.max(0,c0-(e.clientY-y0));r.scrollTop=cur;const y=cur+linhaY();let i=sp.findIndex(s=>s.offsetTop+s.offsetHeight>y);if(i<0)i=sp.length-1;pos=posF=i;marca(i)});addEventListener('pointerup',()=>{y0=null})})();
+(()=>{const r=$('#rolo');let y0=null,c0=0,arr=false;r.addEventListener('pointerdown',e=>{y0=e.clientY;c0=cur;arr=false});
+  addEventListener('pointermove',e=>{if(y0==null)return;if(!arr&&Math.abs(e.clientY-y0)<8)return;arr=true;man=true;cur=Math.max(0,Math.min(r.scrollHeight-r.clientHeight,c0-(e.clientY-y0)));r.scrollTop=cur;const y=cur+linhaY();let i=sp.findIndex(s=>s.offsetTop+s.offsetHeight>y);if(i<0)i=sp.length-1;pos=posF=i;marca(i)});
+  const solta=()=>{if(y0==null)return;y0=null;if(!arr){pausaTx();return}man=false;posF=pos;espera=0;silPos=cum[Math.floor(pos)]||0;hist=[]};addEventListener('pointerup',solta);addEventListener('pointercancel',solta)})();
 /* Mover e redimensionar a janela */
 (()=>{const j=$('#jan');let m=null;const st=(e,tipo)=>{if(C.lay!=='janela')return;e.preventDefault();e.stopPropagation();const r=j.getBoundingClientRect();m={tipo,x:e.clientX,y:e.clientY,l:r.left,t:r.top,w:r.width,h:r.height}};
   $('#alca').addEventListener('pointerdown',e=>st(e,'mov'));$('#canto').addEventListener('pointerdown',e=>st(e,'tam'));
