@@ -130,7 +130,7 @@ dialog{background:var(--t10);color:var(--t3);border:1px solid var(--t7);border-r
 .wrap:has(.ed){max-width:1640px}
 .ed{position:relative;grid-template-columns:76px var(--pw,290px) minmax(0,1fr) var(--rw,280px);grid-template-rows:var(--sh,560px) 0px auto;grid-template-areas:"rail panel stage props" "rail panel stage props" "tl tl tl tl";border-radius:18px;background:var(--t4);gap:0;box-shadow:0 10px 30px rgba(20,16,10,.10)}
 :root[data-theme="dark"] .ed{box-shadow:0 14px 40px rgba(0,0,0,.45)}
-.ed .rail{padding:14px 8px;gap:6px}.ed .rail button{border-radius:12px;min-height:60px}
+.ed .rail{padding:14px 8px;gap:6px}.ed .rail button{border-radius:12px;min-height:60px;height:auto;flex:none;padding:8px 2px;line-height:1.15}.ed .rail button svg{flex:none;width:20px;height:20px}
 .ed .rail button[aria-selected=true]{background:var(--t15);color:var(--on)}
 .ed .panel{background:var(--t10);max-height:none;border-radius:0;overflow:auto;min-height:0}.ed .props{overflow:auto;min-height:0}.ed .rail{overflow:auto;min-height:0}
 .ed .stage{grid-row:1/3;min-height:0!important;overflow:hidden;background:radial-gradient(120% 90% at 50% 40%,#2a2433 0%,#121016 70%);color:#F2ECDF;padding:22px;gap:14px;min-height:560px}
