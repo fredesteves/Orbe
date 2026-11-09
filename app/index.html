@@ -152,6 +152,7 @@ dialog{background:var(--t10);color:var(--t3);border:1px solid var(--t7);border-r
 .grip.v{width:12px;cursor:col-resize}.grip.v::after{top:50%;left:4px;width:4px;height:56px;margin-top:-28px}.grip.h{height:12px;cursor:row-resize}.grip.h::after{left:50%;top:4px;height:4px;width:64px;margin-left:-32px}
 body.arrastando{user-select:none;cursor:col-resize}body.arrastando.hz{cursor:row-resize}
 @media (max-width:1280px){.grip{display:none}}
+.tools .toolsR{margin-left:auto;gap:10px}.tools .toolsR>*{border-radius:10px}@media (max-width:760px){.tools .toolsR{margin-left:0;width:100%}.tools .toolsR>*{flex:1 1 140px}}
 #toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(16px + env(safe-area-inset-bottom,0px));background:var(--t3);color:var(--t0);padding:10px 16px;border-radius:4px;font-size:14px;z-index:50;max-width:calc(100vw - 32px)}
 @media (max-width:1100px){.ed{grid-template-columns:72px 230px minmax(0,1fr);grid-template-areas:"rail panel stage" "props props props" "tl tl tl"}.props{border-left:0;border-top:1px solid var(--t7);max-height:none}.two,.ana{grid-template-columns:minmax(0,1fr)}}
 @media (max-width:760px){aside{flex-basis:100%;padding:14px max(16px,env(safe-area-inset-left,0px));gap:12px;border-right:0;border-bottom:1px solid var(--t5)}.logo{width:110px}.nav{flex-direction:row;overflow-x:auto;scrollbar-width:none}.nav button{width:auto;flex:none;white-space:nowrap;border-left:0;min-height:42px}.nav button[aria-current=page]{box-shadow:inset 0 -3px 0 var(--t15)}.iab{display:none}
@@ -731,7 +732,7 @@ VIEWS.editor=(el,proj)=>{S.tab='prompt';if(proj)S.proj=proj;if(!S.proj)S.proj=ne
   $('#eSave').onclick=()=>out&&save((S.proj.name||'video')+'.'+out.ext,out.blob);$('#eCp').onclick=()=>copy($('#ePost').value);$('#eAg').onclick=()=>{addCard({titulo:S.proj.name,canal:'Reels',etapa:'Agendado',notas:$('#ePost').value});toast('Cartão criado na agenda.')};
   $('#eCap').onclick=async()=>{const tx=M.segs.filter(s=>S.proj.segs.some(g=>s.s<g.b&&s.e>g.a)).map(s=>s.t).join(' ').slice(0,4000);try{const r=await aiJson(`Escreva uma legenda curta para este vídeo de rede social, com chamada para ação e até 5 hashtags. Responda só JSON {"post":"..."}.\nTítulo: ${S.proj.name}\nFala: ${tx}`);$('#ePost').value=r.post}catch(e){toast(aiErr(e))}};
   renderPane();renderProps();renderTL();paint();ilTick();
-  edGrips();{const ask=$('.ask');if(ask){ask.classList.add('askSide');let h=document.getElementById('askStash');if(!h){h=document.createElement('div');h.id='askStash';h.hidden=true;document.body.appendChild(h)}h.appendChild(ask);renderPane()}}
+  {const bt=$('#main .head > .row'),tl=$('#main .tools');if(bt&&tl){bt.classList.add('toolsR');tl.appendChild(bt)}}edGrips();{const ask=$('.ask');if(ask){ask.classList.add('askSide');let h=document.getElementById('askStash');if(!h){h=document.createElement('div');h.id='askStash';h.hidden=true;document.body.appendChild(h)}h.appendChild(ask);renderPane()}}
   ondaCarrega()};
 const ED_L={pw:290,rw:280,sh:560};
 function edGrips(){const ed=$('.ed');if(!ed)return;const sv=ls.get('edLayout',null)||{};const L={...ED_L,...sv};const ap=()=>{ed.style.setProperty('--pw',L.pw+'px');ed.style.setProperty('--rw',L.rw+'px');ed.style.setProperty('--sh',L.sh+'px')};ap();
